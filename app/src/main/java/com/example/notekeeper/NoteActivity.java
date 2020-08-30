@@ -395,6 +395,13 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
         PendingIntent notifyPendingIntent = PendingIntent.getActivity(
                 this, 0, mainActivityIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
+        //Intent for Backup
+        Intent backupServiceIntent = new Intent(this, NoteBackupService.class);
+        backupServiceIntent.putExtra(NoteBackupService.EXTRA_COURSE_ID, NoteBackup.ALL_COURSES);
+        PendingIntent serviceIntent = PendingIntent.getService(
+                this, 0, backupServiceIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+
         NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(smallIcon)
                 .setContentTitle(noteTitle)
@@ -405,6 +412,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
                         .setSummaryText("Review note"))
                 .setContentIntent(pendingIntent)
                 .addAction(0, "View all notes", notifyPendingIntent)
+                .addAction(0, "Backup Notes", serviceIntent)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
