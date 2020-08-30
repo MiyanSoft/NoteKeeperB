@@ -1,23 +1,32 @@
 package com.example.notekeeper;
 
 
+import android.app.PendingIntent;
+import android.app.TaskStackBuilder;
 import android.content.ContentUris;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.SimpleCursorAdapter;
 import android.widget.Spinner;
 import android.util.Log;
 
+import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.loader.app.LoaderManager.LoaderCallbacks;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,6 +38,9 @@ import com.example.notekeeper.NoteKeeperDatabaseContract.CourseInfoEntry;
 import com.example.notekeeper.NoteKeeperDatabaseContract.NoteInfoEntry;
 import com.example.notekeeper.NoteKeeperProviderContract.Courses;
 import com.example.notekeeper.NoteKeeperProviderContract.Notes;
+import com.google.android.material.snackbar.Snackbar;
+
+import static com.example.notekeeper.Notekeeper.CHANNEL_ID;
 
 public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<Cursor> {
     public static final int LOADER_NOTES = 0;
@@ -67,6 +79,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "************** onCreate **************");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_note);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
@@ -97,7 +110,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
 
         if (!mIsNewNote)
             getSupportLoaderManager().initLoader(LOADER_NOTES, null, this );
-        Log.d(TAG, "onCreate");
+        //Log.d(TAG, "onCreate");
     }
 
     private void loadCourseData() {
@@ -169,7 +182,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
         } else {
             saveNote();
         }
-        Log.d(TAG, "onPause");
+        Log.d(TAG, "************** onPause **************");
     }
 
     private void deleteNoteFromDatabase() {
@@ -269,13 +282,65 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
     }
 
     private void createNewNote() {
+        AsyncTask<ContentValues, Integer, Uri> task = new AsyncTask<ContentValues, Integer, Uri>() {
+            private ProgressBar mProgressBar;
+
+            @Override
+            protected void onPreExecute() {
+                mProgressBar = findViewById(R.id.progress_bar);
+                mProgressBar.setVisibility(View.VISIBLE);
+                mProgressBar.setProgress(1);
+            }
+
+            @Override
+            protected Uri doInBackground(ContentValues... params) {
+                Log.d(TAG, "doInBackground - thread: " + Thread.currentThread().getId());
+                ContentValues insertValues = params[0];
+                Uri rowUri = getContentResolver().insert(Notes.CONTENT_URI, insertValues);
+                simulateLongRunningWork();   //simulate slow database work
+                publishProgress(2);
+               
+                simulateLongRunningWork();   //simulate work with data
+                publishProgress(3);
+                return rowUri;  //would be returned by onPostExecute
+
+            }
+
+            @Override
+            protected void onProgressUpdate(Integer... values) {
+                int progressValue = values[0];
+                mProgressBar.setProgress(progressValue);
+            }
+
+            @Override
+            protected void onPostExecute(Uri uri) {
+                Log.d(TAG, "onPostExecute - thread: " + Thread.currentThread().getId());
+                  mNoteUri = uri;
+                  displaySnackbar(mNoteUri.toString());
+                  mProgressBar.setVisibility(View.GONE);
+            }
+        };
+
+
        ContentValues values = new ContentValues();
        values.put(Notes.COLUMN_COURSE_ID, "");
        values.put(Notes.COLUMN_NOTE_TITLE, "");
        values.put(Notes.COLUMN_NOTE_TEXT, "");
 
-        mNoteUri = getContentResolver().insert(Notes.CONTENT_URI, values);
+       Log.d(TAG, "Call to execute - thread: " + Thread.currentThread().getId());
+       task.execute(values);
 
+    }
+
+    private void simulateLongRunningWork() {
+        try {
+            Thread.sleep(2000);
+        } catch(Exception ex) {}
+    }
+
+    private void displaySnackbar(String message) {
+        View view = findViewById(R.id.spinner_courses);
+        Snackbar.make(view, message, Snackbar.LENGTH_LONG).show();
     }
 
     @Override
@@ -289,7 +354,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
     public boolean onOptionsItemSelected(MenuItem item) {
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
+        // as you specify a pare    nt activity in AndroidManifest.xml.
         int id = item.getItemId();
 
         //noinspection SimplifiableIfStatement
@@ -301,11 +366,72 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
             finish();
         } else if (id == R.id.action_next) {
             moveNext();
+        } else if (id == R.id.action_set_reminder) {
+            showReminderNotification();
         }
 
         return super.onOptionsItemSelected(item);
     }
 
+    NotificationCompat.Builder getBuilder(@DrawableRes int smallIcon, String noteTitle, String noteText, int noteId) {
+        if (smallIcon == -1)
+            smallIcon = R.drawable.ic_baseline_assignment;
+
+
+        // Create an intent for NoteActivity from Notification . . . regular activity PendingIntent
+        Intent noteActivityIntent = new Intent(this, NoteActivity.class);
+        noteActivityIntent.putExtra(NoteActivity.NOTE_ID, noteId);
+        // Create the TaskStackBuilder and add the intent, which inflates the back stack
+        TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
+        stackBuilder.addNextIntentWithParentStack(noteActivityIntent);
+        PendingIntent pendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        //intent for MainActivity . . . special activity PendingIntent
+        Intent mainActivityIntent = new Intent(this, MainActivity.class);
+        // Set the Activity to start in a new, empty task
+        mainActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        // Create the PendingIntent
+        PendingIntent notifyPendingIntent = PendingIntent.getActivity(
+                this, 0, mainActivityIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setSmallIcon(smallIcon)
+                .setContentTitle(noteTitle)
+                .setContentText(noteText)
+                .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText(noteText)
+                        .setBigContentTitle(noteTitle)
+                        .setSummaryText("Review note"))
+                .setContentIntent(pendingIntent)
+                .addAction(0, "View all notes", notifyPendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT);
+
+
+
+
+
+        return builder;
+    }
+
+    private void showReminderNotification() {
+        String noteText = mTextNoteText.getText().toString();
+        String noteTitle = mTextNoteTitle.getText().toString();
+        int noteId = (int) ContentUris.parseId(mNoteUri);
+        NotificationCompat.Builder builder = getBuilder(-1, noteTitle, noteText, noteId);
+
+        notify(mNoteId, builder);
+
+    }
+    private void notify(int notificationId, NotificationCompat.Builder builder)   {
+
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+
+        // notificationId is a unique int for each notification that you must define
+        notificationManager.notify(notificationId, builder.build());
+
+    }
     @Override
     public boolean onPrepareOptionsMenu(Menu menu) {
         MenuItem item = menu.findItem(R.id.action_next);
