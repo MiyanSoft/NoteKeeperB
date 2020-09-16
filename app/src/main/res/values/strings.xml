@@ -56,6 +56,8 @@
     <string name="pref_default_favorite_social">http://plus.google.com</string>
     <string name="channel_name">NoteKeeper Notification</string>
     <string name="channel_description">Basic notification description</string>
+    <string name="notes_backup">Backup notes</string>
+    <string name="notes_upload">Upload notes</string>
 
 
 </resources>

@@ -2,9 +2,12 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
       xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/action_upload_notes"
+        android:title="@string/notes_upload" />
+    <item
         android:id="@+id/action_backup_notes"
         android:orderInCategory="100"
-        android:title="Backup notes"
+        android:title="@string/notes_backup"
         app:showAsAction="never" />
     <item
         android:id="@+id/action_settings"

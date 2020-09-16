@@ -302,7 +302,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
                
                 simulateLongRunningWork();   //simulate work with data
                 publishProgress(3);
-                return rowUri;  //would be returned by onPostExecute
+                return rowUri;  //would be received by onPostExecute
 
             }
 
@@ -328,6 +328,7 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
        values.put(Notes.COLUMN_NOTE_TEXT, "");
 
        Log.d(TAG, "Call to execute - thread: " + Thread.currentThread().getId());
+       //values would be received by doInBackground()
        task.execute(values);
 
     }
