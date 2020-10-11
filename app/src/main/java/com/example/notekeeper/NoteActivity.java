@@ -419,10 +419,6 @@ public class NoteActivity extends AppCompatActivity implements LoaderCallbacks<C
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT);
 
-
-
-
-
         return builder;
     }
 
